@@ -89,6 +89,162 @@ what it does, and where it stops being useful. Vetting notes are what I checked,
   header-auth key and rotate it if the machine is ever shared.
 - Costs money: CarsXE is a paid API. Check their current pricing before relying on it.
 
+## MCP server vetting — agent findings, 2026-07-26
+
+Six parallel agents, static review plus local dependency installs, against
+`docs/skill-vetting.md`. Each worked in an isolated scratchpad and was forbidden from touching
+any config. These verdicts **supersede** the speculative triage further down this file, which
+ranked several of these as high value before anyone read the code.
+
+### REJECT — evidence-based
+
+**`markswendsen-code/mcp-carmax`**
+Scraping with evasion: spoofed Chrome user-agent, DOM scraping via a Browserbase remote-browser
+relay (`BROWSERBASE_CDP_URL` hands browser control to a third party). Decisive finding: the
+`schedule_test_drive` and `get_instant_offer` tools **autofill and submit real forms on
+carmax.com** carrying name, email, phone, and VIN. That is unattended PII submission to a live
+site — the automated version of the exact failure `PLAYBOOK.md` exists to prevent.
+
+**`markswendsen-code/mcp-carecom`**
+**This is Care.com, childcare — not Cars.com.** It was ranked here as a car-buying channel on a
+misread of the name. Takes `CARECOM_EMAIL` and `CARECOM_PASSWORD`, and its `send_message` and
+`create_job` tools write to the live account with no confirmation gate. Lethal trifecta:
+scraped untrusted content, live credentials, ability to act.
+
+**`cardog-ai/mcp-server`**
+No source code in the repo. A README pointing at a hosted SaaS endpoint (`mcp.cardog.io/sse`),
+paid, with the logic running on their infrastructure where it cannot be audited. Not installable
+as a local server at all.
+
+**`quotor/home-auto-insurance-quotes`**
+Confirms the structural objection with specifics. A live quote requires full name, date of birth
+for every driver, property address, property facts, vehicle year/make/model/VIN, current carrier,
+contact details, and driving history — all transmitted to `mcp.quotor.ai`. The repo contains zero
+server source. Access is **anonymous**: no authentication is needed to submit that payload. The
+"quote-only, human-completes-bind" promise is self-asserted in the README and unverifiable.
+
+### BROKEN — the dangerous kind
+
+**`markswendsen-code/mcp-carvana`**
+Makes **zero outbound network calls**. Every tool (`search_vehicles`, `get_vehicle_details`, …)
+returns hardcoded template text. It does not scrape Carvana; it fabricates. No security risk, but
+it would silently feed invented inventory and pricing into a purchase decision, which is worse
+than failing loudly. Do not install.
+
+### SAFE-TO-WIRE
+
+**`Geeksfino/kb-mcp-server`** — 71 stars, MIT, Python.
+**Local only.** Local sentence-transformers embeddings, local FAISS/SQLite, binds localhost, no
+outbound calls in the server source. This is the Layer 3 document Q&A from `README.md` — ask
+questions across all the CARFAX and dealer PDFs at once without shipping them to NotebookLM or
+anyone else.
+- Keep `--host localhost`. Their example config offers `--host 0.0.0.0`, which would expose it on
+  the LAN.
+- First run downloads models from huggingface.co. One-time model fetch, not a per-query data leak.
+- Heavy dependency chain (torch, transformers, txtai[all]). Install was **not** verified — the
+  stack was too large for the agent's budget. Nothing malicious found, but treat the install as
+  unproven until it runs.
+
+### NEEDS-KEY
+
+**`carvectorio/carvector-mcp`** — MIT, JavaScript, ~210 lines, one dependency.
+Clean: no subprocess, eval, obfuscation, or persistence. Only host is `api.carvector.io`. But it
+is a **paid aggregation layer reselling NHTSA data**, not raw free NHTSA — free tier 500
+req/month, with complaints and TSBs gated behind paid plans. Use the `CARVECTOR_API_KEY` env var,
+never the `--key` CLI flag, which is visible in process listings.
+
+### WIRED — `vin-lookup-mcp`
+
+`taimoorgit/vin-lookup-mcp`, cloned to `vendor/vin-lookup-mcp`, wired in both `.mcp.json` files.
+Single host `vpic.nhtsa.dot.gov`, stdlib `urllib` only, **no API key**, no subprocess/eval/pickle,
+no persistence. Smoke-tested live: `1HGCM82633A004352` → 2003 Honda Accord EX-V6 Coupe, J30A4
+3.0L, built Marysville OH. Caveats: no LICENSE file, 0 stars, single author — fine for personal
+use, not for redistribution.
+
+This is the free cross-check to run on every VIN **before** paying for any history report: does
+the listing's claimed year/make/model/engine/trim actually match the VIN?
+
+### REJECT — `markswendsen-code/mcp-enterprise` — **it fabricates results**
+
+The most important finding of the whole review.
+
+- `createReservation` navigates, catches any failure, and returns
+  `` confirmationNumber = `ENT-${Math.random().toString(36).substring(2,8).toUpperCase()}` ``
+  with `status: "CONFIRMED"` — having booked nothing.
+- `cancelReservation` returns `success: true` unconditionally, on every path, having cancelled
+  nothing.
+- `getLoyaltyPoints` returns a hardcoded 12,500 points / Gold tier with four invented activity rows.
+- `searchVehicles` silently falls back to four hardcoded cars at fixed prices whenever scraping
+  fails, which the stale selectors make the normal case.
+
+**The author has since retracted it.** npm 1.0.1 ships no browser code at all and opens with:
+`// HONEST STUB. // This connector previously FABRICATED success responses (fake order /
+reservation / booking / confirmation ids) for actions that never actually happened`. The GitHub
+repo still contains the fabricating version — cloning it gets you the code the author pulled.
+
+Independently disqualifying: the Enterprise Plus PIN is a **tool parameter**, so it gets typed
+into chat and lands in conversation history (`docs/skill-vetting.md` §4 auto-reject), and it
+writes plaintext authenticated session cookies to `~/.mcp-enterprise/session.json` — outside its
+own directory, never expired.
+
+The harm here isn't malware. It's believing you have a car booked when no reservation exists.
+
+### CONDITIONAL — `antonlunden/vehicle-mcp`
+
+Honest, well-built code: 503 typed lines, ruff + pyrefly in CI, no evasion, no obfuscation, no
+disk writes, no shell. The risk is **design, not malice**:
+
+- `unlock_vehicle` is a plain tool with **no confirmation gate, no `destructiveHint`, no
+  elicitation**. The only gate is whether `SECURE_PIN` is set. Once it is, any prompt injection
+  reaching the agent can physically open the car.
+- `get_vehicle_status` returns **live GPS latitude/longitude, street address, city, and odometer**
+  into model context on every call. That is continuous physical tracking of you, not the car.
+- Credentials (Skoda email, password, S-PIN) go in plaintext into the MCP client config's `env`
+  block — the app-config-as-secret-store case.
+
+**Inert without a Skoda.** Hard-fails at import without `BRAND`/`USERNAME`/`PASSWORD`, and only
+supports `skoda`. TJ owns no Skoda, so installing it is a no-op with zero risk surface.
+
+**Windows bug worth knowing:** `USERNAME` is an OS-set variable (`guruv` on this machine), so the
+missing-credential guard silently passes and attempts a Skoda login as `guruv`. Repeated failures
+can lock a real account.
+
+**If ever used: omit `SECURE_PIN`.** Both lock tools then raise instead of acting, while status,
+climate, and charging still work. That single omission is the most effective available control.
+
+### CONDITIONAL — `SiddarthaKoppaka/car_deals_search_mcp`
+
+The benign one of the three. Read-only scraping, **no credentials, no disk writes**, no
+`child_process`/`eval`/`base64`/persistence — all grepped, zero hits. Two things to fix first:
+
+1. **Strip the browser-hardening downgrade.** `src/scraper.js:53-55` launches Chromium with
+   `--disable-web-security` and `--disable-features=IsolateOrigins,site-per-process`. Those turn
+   **off CORS enforcement and site isolation**, so any hostile script on a scraped listing page can
+   read cross-origin. They provide no scraping benefit and are unrelated to bot evasion.
+2. **Never install via its `server.json`.** That file is an uncustomized template
+   (`"vendor": {"name": "Your Name"}`) whose install command is `npx -y car-deals-mcp` — and
+   **`car-deals-mcp` does not exist on npm**. Anyone can register that name today and every client
+   trusting the manifest would run a stranger's package. Wire by absolute path to `src/server.js`
+   only.
+
+Evasion is real but shallow: `puppeteer-extra-plugin-stealth` (UA patching, `navigator.webdriver`
+removal, WebGL spoofing). No proxy rotation, no captcha solving, fixed 5s delays. Residual risk is
+legal/ToS and IP blocking, not compromise. `sources` defaults to `cars.com` only; the Autotrader
+and KBB selectors look stale.
+
+### REJECT — `simons-hub/car-falcon-mcp`
+
+`playwright-stealth` evasion, scrapes kbb.com without permission. Worse: **the advertised
+multi-site scraper isn't in the public repo** — only `base.py` and `kbb.py` exist under `sites/`,
+so out of the box it's just VIN/NHTSA lookup plus KBB valuation. Also needs Python ≥3.10; this
+machine's default is 3.8.10.
+
+### BLOCKED — `vehiclesdb/vehicles`
+
+Genuinely clean: a 5.4 MB bundled offline dataset (~18k models), MCP path uses stdlib `json` only,
+no network, no subprocess, no credentials. Blocked purely on runtime — Ruby is not installed and
+the gem needs ≥3.1.0. The safest of the batch if you ever want it.
+
 ## Triage of the remaining marketplace listings
 
 Reviewed from the MCP Market / Awesome Skills listings. None installed. Reasons are specific

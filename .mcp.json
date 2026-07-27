@@ -1,8 +1,34 @@
 {
   "mcpServers": {
+    "vin-lookup": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "C:\\Users\\guruv\\Documents\\DeskSpace\\sec-brain\\CarDealerships\\vendor\\vin-lookup-mcp",
+        "python",
+        "-m",
+        "vin_lookup_mcp.server"
+      ]
+    },
     "marketcheck": {
       "type": "http",
       "url": "https://api.marketcheck.com/mcp?api_key=${MARKETCHECK_API_KEY}"
+    },
+    "carsxe": {
+      "type": "http",
+      "url": "https://mcp.carsxe.com/mcp",
+      "headers": { "X-API-Key": "${CARSXE_API_KEY}" }
+    },
+    "carvector": {
+      "command": "npx",
+      "args": ["-y", "carvector-mcp"],
+      "env": { "CARVECTOR_API_KEY": "${CARVECTOR_API_KEY}" }
+    },
+    "cardog": {
+      "type": "sse",
+      "url": "https://mcp.cardog.io/sse",
+      "headers": { "Authorization": "Bearer ${CARDOG_API_KEY}" }
     }
   }
 }
