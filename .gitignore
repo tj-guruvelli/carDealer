@@ -1,0 +1,22 @@
+# Never version personal financial / identity paperwork
+*credit-app*
+*credit_app*
+*financing*
+*loan-app*
+*ssn*
+*drivers-license*
+*driver_license*
+*insurance-card*
+
+# Local working files
+tools/candidates.csv
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.env
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store
