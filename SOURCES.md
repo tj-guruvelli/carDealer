@@ -36,6 +36,33 @@ what it does, and where it stops being useful. Vetting notes are what I checked,
   - `dealer-cta-audit` and `dealer-site-score` — the conversion playbook being run on you.
 - To remove any of them: `Remove-Item -Recurse ~\.claude\skills\dealer-<name>`
 
+### Marketcheck — 75 skills + hosted MCP server
+- Source: `MarketcheckHub/marketcheck-cowork-plugin` (4 stars) and
+  `MarketcheckHub/marketcheck-api-mcp`. Vendor-official, Marketcheck Cars Inc.
+- The MCP Market listing for "Vehicle Deal Finder & Negotiator" is this repo's
+  `plugins/dealer/skills/deal-finder`. "Inventory Intelligence" is `plugins/*/skills/inventory-intelligence`.
+  Both came in with the bundle install; no separate download needed.
+- Installed all 9 bundles (analyst, appraiser, auction-house, dealer, dealership-group, insurer,
+  lender, lender-sales, manufacturer) = 75 bundle×skill pairs to `~/.claude/skills/marketcheck-*`.
+- **Namespacing:** 41 distinct skill names appear across bundles, and same-named skills are NOT
+  identical (all different hashes — `depreciation-tracker` alone ships 8 persona-specific
+  variants). Installed as `marketcheck-<bundle>-<skill>` with the frontmatter `name:` rewritten
+  to match the directory, so nothing collides and each persona's version stays addressable.
+- MCP server vetting: read `services/base.py` and grepped the whole tree. Only outbound host is
+  `api.marketcheck.com/v2`. Key read from the `MARKETCHECK_API_KEY` env var, never hardcoded. No
+  `subprocess`, `os.system`, `eval`, `exec`, or `pickle` anywhere. Their `SECURITY.md` tells you
+  not to commit the key. Clean.
+- Wired as an HTTP server in `.mcp.json` (both here and at the sec-brain root) pointing at the
+  hosted endpoint with `${MARKETCHECK_API_KEY}` interpolation. **The key is not in any file.**
+- **Costs money.** Free tier is 500 calls/month, 5 calls/sec, 100-mile radius cap. Basic is
+  $299/month. Every tier reads "+ data fees" on their pricing page, so $0 is the subscription,
+  not guaranteed to be the bill. A single deal-finder query burns 3-4 calls, so free tier is
+  roughly 125 lookups/month. Watch it.
+- Buyer-relevant subset out of the 75: `marketcheck-dealer-deal-finder` (fair-price validation,
+  DOM negotiation leverage), `marketcheck-dealer-vehicle-appraiser` (comp-anchored value range),
+  `marketcheck-dealer-depreciation-tracker` (will it hold value),
+  `marketcheck-analyst-dom-monitor`. The rest is dealer, lender, insurer, and equity-analyst work.
+
 ## Evaluated, not installed
 
 ### used-car-price-search
@@ -45,6 +72,17 @@ what it does, and where it stops being useful. Vetting notes are what I checked,
 - Queries SK Rent-a-Car Direct TagoBUY inventory by scraping `__NEXT_DATA__` from the page.
 - **Korea-only, and rental-fleet-only.** No US inventory. Not applicable to this purchase.
   Also snapshot-based, so pricing and availability drift.
+
+### Car Rental Search & Booking (FDU-INS, 53 stars)
+- Fliggy (Alibaba travel network) car **rental** inventory via `flyai-cli`, Chinese market.
+- Renting, not buying. No US purchase data. Not applicable.
+
+### Cardog MCP (`cardog-ai`)
+- Vehicle listing search, VIN market analysis, recalls, EV charging locator. Requires its own API
+  key. 0 GitHub stars and not yet vetted.
+- Deferred deliberately: it overlaps Marketcheck on listings and VIN market analysis, and adds a
+  second paid credential plus a second unaudited server for capability already covered. Revisit
+  only if Marketcheck's free tier proves too thin. Recalls are free from NHTSA directly.
 
 ### The self-install prompt pattern
 Both the Dealer AI Guy site and its launch article push `Install this: <github url>` as the

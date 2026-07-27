@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "marketcheck": {
+      "type": "http",
+      "url": "https://api.marketcheck.com/mcp?api_key=${MARKETCHECK_API_KEY}"
+    }
+  }
+}
