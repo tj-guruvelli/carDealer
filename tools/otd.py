@@ -69,7 +69,8 @@ def out_the_door(row, label, tax_rate, title_fee):
     """
     price = to_float(row, "price", label)
     dealer_fee = to_float(row, "dealer_fee", label, default=0.0)
-    row_tax = row.get("tax_rate", "").strip()
+    # A short CSV row leaves trailing columns as None, so .get's default never fires.
+    row_tax = (row.get("tax_rate") or "").strip()
     rate = float(row_tax) if row_tax else tax_rate
     taxable = price + dealer_fee
     return taxable + (taxable * rate) + title_fee
