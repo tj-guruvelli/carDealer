@@ -9,7 +9,7 @@
 *insurance-card*
 
 # Local working files
-tools/candidates.csv
+# tools/candidates.csv now tracked — it is the live shortlist, no PII in it
 .venv/
 __pycache__/
 *.py[cod]
