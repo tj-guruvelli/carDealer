@@ -245,6 +245,20 @@ Genuinely clean: a 5.4 MB bundled offline dataset (~18k models), MCP path uses s
 no network, no subprocess, no credentials. Blocked purely on runtime — Ruby is not installed and
 the gem needs ≥3.1.0. The safest of the batch if you ever want it.
 
+### INSTALLED — `drivly/auto-dev-skill` (Auto.dev)
+
+`~/.claude/skills/auto-dev`. MIT, 15 stars, pushed 2026-04-08. 19 markdown reference files,
+**zero scripts**. Hosts: `api.auto.dev`, `retail.photos.vin`. Key read from `AUTODEV_API_KEY`
+env var, never chat. No subprocess/eval/base64/persistence. Clean.
+
+**It closes the doc-fee gap.** Auto.dev has a **Taxes & Fees** endpoint — the one number
+`tools/otd.py` currently cannot source, because Marketcheck does not report dealer doc fees. Every
+out-the-door figure in `candidates.csv` is understated by that amount today. Also carries Total
+Cost of Ownership, Vehicle Payments, Interest Rates, OEM Build Data, and Open Recalls.
+
+Metered per call: specs $0.0015, recalls $0.01, TCO $0.06, taxes/fees $0.005, OEM build $0.10.
+Needs an Auto.dev key before anything fires.
+
 ## Triage of the remaining marketplace listings
 
 Reviewed from the MCP Market / Awesome Skills listings. None installed. Reasons are specific
