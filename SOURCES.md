@@ -63,6 +63,75 @@ what it does, and where it stops being useful. Vetting notes are what I checked,
   `marketcheck-dealer-depreciation-tracker` (will it hold value),
   `marketcheck-analyst-dom-monitor`. The rest is dealer, lender, insurer, and equity-analyst work.
 
+### CarsXE — 12 skills, installed WITHOUT the auth command
+- Source: `carsxe/carsxe-claude-plugin` (2 stars). 27 markdown + 2 JSON + LICENSE. No scripts.
+- Only outbound host is `api.carsxe.com`. No `subprocess`, `eval`, `base64`, `schtasks`/cron,
+  or hook installation. Code side is clean.
+- Installed as `~/.claude/skills/carsxe-*`: vehicle-history, market-value, vehicle-specs,
+  vehicle-recalls, lien-theft, year-make-model, international-vin, plate-decoder,
+  plate-image-recognition, vin-ocr, obd-decoder, vehicle-images. Each has a `NOTES.md` with
+  source URL and install date per checklist section 7.
+- **Fills the real gap Marketcheck leaves.** Marketcheck does listings and pricing; it does not
+  do title brands, accident records, odometer history, or liens. `carsxe-vehicle-history` and
+  `carsxe-lien-theft` are the "is this car legally clean" half of due diligence.
+- **FINDING — `commands/auth.md` was deliberately NOT installed.** It violates
+  `docs/skill-vetting.md` twice:
+  - §4 (auto-reject): it asks you to paste the API key into chat — `/carsxe:auth YOUR_API_KEY`,
+    and "If no key is provided, ask: Please provide your CarsXE API key."
+  - §2: step 5 has the agent build a shell command with the key interpolated into the string
+    (`export CARSXE_API_KEY=<KEY>` / `$env:CARSXE_API_KEY="<KEY>"`), which is the raw-string-into-
+    shell pattern that caused the RCE on this machine.
+  The 12 skills read `CARSXE_API_KEY` from the environment and work fine without that command.
+  Set it as a user env var out-of-band, exactly like `MARKETCHECK_API_KEY`. Never paste a key
+  into this chat.
+- Separate note: CarsXE passes the key as a URL query parameter (`?key=...`). That is their API
+  design, and it means the key can land in proxy and server logs. Treat it as lower-trust than a
+  header-auth key and rotate it if the machine is ever shared.
+- Costs money: CarsXE is a paid API. Check their current pricing before relying on it.
+
+## Triage of the remaining marketplace listings
+
+Reviewed from the MCP Market / Awesome Skills listings. None installed. Reasons are specific
+because "not installed" without a reason is how a gap gets rediscovered three weeks later.
+
+**Worth installing, free, no credential** — recommended next:
+- `taimoorgit/vin-lookup-mcp` — NHTSA vPIC VIN decoding, public API, **no key required**. Free
+  cross-check that a listing's stated year/make/model/engine matches the VIN before paying for
+  any history report. Only reason it is not installed yet is that it was not explicitly asked for.
+
+**Skip — actively risky:**
+- `SiddarthaKoppaka/car-deals-search` — scrapes Cars.com, Autotrader, KBB with Puppeteer
+  "stealth mode using anti-bot detection techniques". Evasion of bot protection, against those
+  sites' terms, and the listing text it returns is untrusted content feeding an agent. 0 stars.
+- `antonlunden` / `anton-lunden` "Vehicle" MCP — remote **unlock doors**, climate, and charging
+  on a real Skoda. Nothing to do with buying a car, and handing an agent physical door-unlock is
+  a capability that needs its own deliberate decision, not a bundled install. 1 star.
+- `markswendsen-code` Enterprise Connector — headless "stealthy" Playwright against
+  enterprise.com with persisted session cookies. Rental, not purchase, plus evasion plus a live
+  authenticated session. 0 stars.
+
+**Skip — wrong market:**
+- `deusyu/car-advisor` and `deusyu/car-research` — sources are Dongchedi and Autohome, Chinese
+  market, Xiaomi SU7 examples. No US data.
+- `FDU-INS` Car Rental Search — Fliggy/Alibaba, Chinese rental market.
+
+**Skip — wrong problem:**
+- `a5c-ai` Automotive Cybersecurity (1.3k stars) — ISO/SAE 21434 TARA and SecOC for engineers
+  building vehicle ECUs. High-quality and completely unrelated to buying one.
+- `lionelsimai` Vehicle Lifecycle Management — fleet asset management framework.
+- `nickytonline` Pimp My Ride — virtual car customization for a racing game.
+- `RichardLimaDxD` Car Agent Python — a Django dealership backend, not a buyer tool.
+- `Geeksfino/kb` — txtai semantic search. Would serve the Layer 3 document Q&A role, but this
+  vault already has `server/` vault-recall (FTS5 + fastembed) doing exactly that.
+
+**Skip — redundant:**
+- `carvectorio` CarVector — specs, NHTSA recalls, OBD-II codes, complaints, TSBs. 0 stars, and
+  the recall/complaint data is free from NHTSA directly, which `vin-lookup-mcp` already reaches.
+- `simons-hub` Car Falcon — multi-site scraping plus KBB plus **Gmail delivery**. 0 stars and it
+  wants mailbox access for a reporting convenience.
+- `Cole-Cant-Code` AutoCIP — 52 tools, 35 reasoning frameworks, dual-LLM, 1 star. Ambitious and
+  entirely unproven; the surface area is far too large to vet for the value it adds here.
+
 ## Evaluated, not installed
 
 ### used-car-price-search
